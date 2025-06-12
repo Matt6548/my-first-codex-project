@@ -12,14 +12,15 @@ from telegram.ext import (
 
 from faq_data import FAQ_DATA
 
-# 🔐 Вставь свои реальные ключи:
+# 🔐 Ключи берутся из переменных окружения
 BOT_TOKEN = '7697595103:AAElGIoz281OUoWluFQOSlO7l79rM5vAP9M'  # ← сюда токен Telegram
 GROQ_API_KEY = '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'  # ← сюда Groq API ключ
 
 SUPPORTED_LANGS = {"uz", "ru", "en"}
 
+
 def find_faq_answer(query: str, lang: str) -> str | None:
-    """Поиск лучшего совпадения в FAQ по ключевым словам (если совпадение ≥ 50%)."""
+    """Поиск лучшего совпадения в FAQ по ключевым словам (≥ 50%)."""
     faq = FAQ_DATA.get(lang, {})
     words = set(query.lower().split())
     best_score = 0
@@ -32,12 +33,11 @@ def find_faq_answer(query: str, lang: str) -> str | None:
         if score > best_score:
             best_score = score
             best_answer = ans
-    if best_score >= 0.5:
-        return best_answer
-    return None
+    return best_answer if best_score >= 0.5 else None
+
 
 async def generate_ai_answer(question: str, lang: str) -> str:
-    """Запрос к Groq API (LLaMA 3) — если нет подходящего ответа в FAQ."""
+    """Запрос к Groq API (LLaMA 3)."""
     url = "https://api.groq.com/openai/v1/chat/completions"
 
     headers = {
@@ -66,19 +66,20 @@ async def generate_ai_answer(question: str, lang: str) -> str:
         print(f"Groq API error: {e}")
         return "Извините, произошла ошибка при обращении к ИИ."
 
+
 def log_interaction(question: str, answer: str) -> None:
-    """Сохраняем историю вопросов и ответов в log.txt."""
+    """Логирование в файл."""
     with open("log.txt", "a", encoding="utf-8") as f:
         f.write(f"Q: {question}\nA: {answer}\n\n")
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка команды /start."""
     await update.message.reply_text(
         "Здравствуйте! Задайте вопрос или используйте /language uz|ru|en для выбора языка."
     )
 
+
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Установка языка пользователя через /language."""
     if context.args:
         lang = context.args[0].lower()
         if lang in SUPPORTED_LANGS:
@@ -87,8 +88,8 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             return
     await update.message.reply_text("Пример использования: /language uz|ru|en")
 
+
 async def answer_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ответить из FAQ или через ИИ."""
     question_raw = update.message.text.strip()
 
     lang = context.user_data.get("lang")
@@ -108,10 +109,10 @@ async def answer_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(answer)
     log_interaction(question_raw, answer)
 
+
 def main() -> None:
-    """Запуск Telegram-бота."""
     if not BOT_TOKEN:
-        raise RuntimeError('BOT_TOKEN не указан.')
+        raise RuntimeError('Укажите TELEGRAM_BOT_TOKEN в переменных окружения.')
 
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -121,6 +122,23 @@ def main() -> None:
 
     print("🤖 Бот запущен...")
     application.run_polling()
+
+
+# ==== Flask-заглушка для Render ====
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Бот запущен и работает!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+# 🟢 Запуск Flask-потока и бота
+threading.Thread(target=run_flask).start()
 
 if __name__ == '__main__':
     main()
