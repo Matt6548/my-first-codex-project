@@ -118,9 +118,10 @@ def main() -> None:
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('language', set_language))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_question))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(pdf|excel)$"), handle_report_request))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(pdf|excel)$"), handle_report_request))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_question))
+
 
     print("🤖 Бот запущен...")
     application.run_polling()
