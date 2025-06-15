@@ -14,7 +14,7 @@ from faq_data import FAQ_DATA
 
 # 🔐 Ключи берутся из переменных окружения
 BOT_TOKEN = '7697595103:AAElGIoz281OUoWluFQOSlO7l79rM5vAP9M'  # ← сюда токен Telegram
-GROQ_API_KEY = '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'  # ← сюда Groq API ключ
+GROQ_API_KEY = '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'  # ← сюда Groq API ключ
 
 SUPPORTED_LANGS = {"uz", "ru", "en"}
 
