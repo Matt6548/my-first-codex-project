@@ -1,4 +1,6 @@
 python-telegram-bot~=20.0
-langdetect
 requests
+langdetect
+fpdf
+pandas
 flask
