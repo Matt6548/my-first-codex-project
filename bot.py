@@ -119,6 +119,8 @@ def main() -> None:
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('language', set_language))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_question))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(pdf|excel)$"), handle_report_request))
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     print("🤖 Бот запущен...")
     application.run_polling()
@@ -142,3 +144,63 @@ threading.Thread(target=run_flask).start()
 
 if __name__ == '__main__':
     main()
+import os
+from uuid import uuid4
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
+    if not document:
+        await update.message.reply_text("Пожалуйста, отправьте файл.")
+        return
+
+    # Скачиваем файл во временную папку
+    file = await context.bot.get_file(document.file_id)
+    file_extension = document.file_name.split('.')[-1]
+    temp_dir = "temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    file_path = os.path.join(temp_dir, f"{uuid4().hex}.{file_extension}")
+    await file.download_to_drive(file_path)
+
+    # Сохраняем путь к файлу во временные данные пользователя
+    context.user_data["uploaded_file_path"] = file_path
+
+    await update.message.reply_text(
+        f"📄 Файл получен: {document.file_name}\nКакой тип отчёта вы хотите подготовить?\n\nНапишите: `pdf` или `excel`",
+        parse_mode="Markdown"
+    )
+import pandas as pd
+from fpdf import FPDF
+
+async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message.text.lower().strip()
+    file_path = context.user_data.get("uploaded_file_path")
+
+    if message not in ["pdf", "excel"] or not file_path:
+        return  # Игнорируем, если нет файла или команды
+
+    try:
+        # Создание заглушки-отчёта на основе содержимого
+        report_path = ""
+        if message == "excel":
+            df = pd.DataFrame([["Файл успешно получен", file_path]])
+            report_path = file_path.replace(".", "_report.") + "xlsx"
+            df.to_excel(report_path, index=False)
+        elif message == "pdf":
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
+            pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
+            report_path = file_path.replace(".", "_report.") + "pdf"
+            pdf.output(report_path)
+
+        # Отправляем отчёт пользователю
+        await update.message.reply_document(document=open(report_path, "rb"))
+
+        # Удаляем временные файлы
+        os.remove(file_path)
+        os.remove(report_path)
+        context.user_data.clear()
+
+    except Exception as e:
+        await update.message.reply_text(f"❗ Ошибка при создании отчёта: {e}")
