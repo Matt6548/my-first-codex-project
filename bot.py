@@ -145,16 +145,17 @@ threading.Thread(target=run_flask).start()
 
 if __name__ == '__main__':
     main()
+# 1. Импорт
 import os
 from uuid import uuid4
 
+# 2. Определение функции до main()
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     document = update.message.document
     if not document:
         await update.message.reply_text("Пожалуйста, отправьте файл.")
         return
 
-    # Скачиваем файл во временную папку
     file = await context.bot.get_file(document.file_id)
     file_extension = document.file_name.split('.')[-1]
     temp_dir = "temp"
@@ -162,13 +163,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_path = os.path.join(temp_dir, f"{uuid4().hex}.{file_extension}")
     await file.download_to_drive(file_path)
 
-    # Сохраняем путь к файлу во временные данные пользователя
     context.user_data["uploaded_file_path"] = file_path
 
     await update.message.reply_text(
         f"📄 Файл получен: {document.file_name}\nКакой тип отчёта вы хотите подготовить?\n\nНапишите: `pdf` или `excel`",
         parse_mode="Markdown"
     )
+
 import pandas as pd
 from fpdf import FPDF
 
