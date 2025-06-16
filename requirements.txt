@@ -4,3 +4,4 @@ langdetect
 fpdf
 pandas
 flask
+pdfplumber
