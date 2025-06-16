@@ -15,9 +15,8 @@ from flask import Flask
 import threading
 import pandas as pd
 from fpdf import FPDF
+import pdfplumber
 from faq_data import FAQ_DATA
-import time
-import asyncio
 
 # 🔐 Ключи берутся из переменных окружения
 BOT_TOKEN = '7697595103:AAElGIoz281OUoWluFQOSlO7l79rM5vAP9M'  # ← сюда токен Telegram
@@ -60,10 +59,10 @@ async def generate_ai_answer(question: str, lang: str) -> str:
         response = requests.post(url, headers=headers, json=data, timeout=10)
         result = response.json()
         ai_answer = result['choices'][0]['message']['content'].strip()
-        return f"🤖 ИИ-ответ:\n{ai_answer}"
+        return ai_answer
     except Exception as e:
         print(f"Groq API error: {e}")
-        return "Извините, произошла ошибка при обращении к ИИ."
+        return "Ошибка при обращении к ИИ."
 
 def log_interaction(question: str, answer: str) -> None:
     with open("log.txt", "a", encoding="utf-8") as f:
@@ -100,6 +99,15 @@ async def answer_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(answer)
     log_interaction(question_raw, answer)
 
+async def extract_text_from_pdf(path: str) -> str:
+    try:
+        with pdfplumber.open(path) as pdf:
+            text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
+            return text.strip()
+    except Exception as e:
+        print(f"Ошибка извлечения текста: {e}")
+        return ""
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     document = update.message.document
     if not document:
@@ -113,40 +121,34 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await file.download_to_drive(file_path)
     context.user_data["uploaded_file_path"] = file_path
     await update.message.reply_text(
-        f"📄 Файл получен: {document.file_name}\nКакой тип отчёта вы хотите подготовить?\n\nНапишите: `pdf` или `excel`",
-        parse_mode="Markdown"
+        f"📄 Файл получен: {document.file_name}\nНапишите, какой анализ или отчёт вы хотите получить по содержимому файла."
     )
 
 async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message.text.lower().strip()
+    request = update.message.text.strip()
     file_path = context.user_data.get("uploaded_file_path")
-    if message not in ["pdf", "excel"] or not file_path:
+    if not file_path:
         return
     try:
-        report_path = ""
-        if message == "excel":
-            df = pd.DataFrame([["Файл успешно получен", file_path]])
-            report_path = file_path.replace(".", "_report.") + "xlsx"
-            df.to_excel(report_path, index=False)
-        elif message == "pdf":
-            pdf = FPDF()
-            pdf.add_font('DejaVu', '', 'dejavu-sans-ttf-2.37/ttf/DejaVuSans.ttf', uni=True)
-            pdf.add_page()
-            pdf.set_font("DejaVu", size=12)
-            pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
-            pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
-            report_path = file_path.replace(".", "_report.") + "pdf"
-            pdf.output(report_path)
+        lang = context.user_data.get("lang", "ru")
+        if file_path.endswith(".pdf"):
+            content = await extract_text_from_pdf(file_path)
+        elif file_path.endswith(".xlsx"):
+            df = pd.read_excel(file_path)
+            content = df.to_string()
+        else:
+            await update.message.reply_text("Формат файла не поддерживается для анализа.")
+            return
 
-        await update.message.reply_document(document=open(report_path, "rb"))
+        full_prompt = f"Вот данные: {content[:1500]}\n\n{request}"
+        answer = await generate_ai_answer(full_prompt, lang)
+        await update.message.reply_text(f"📊 Анализ:
+{answer}")
 
-        # Удаление файлов через 30 секунд
-        await asyncio.sleep(30)
         os.remove(file_path)
-        os.remove(report_path)
         context.user_data.clear()
     except Exception as e:
-        await update.message.reply_text(f"❗ Ошибка при создании отчёта: {e}")
+        await update.message.reply_text(f"❗ Ошибка при анализе файла: {e}")
 
 def main() -> None:
     if not BOT_TOKEN:
@@ -155,8 +157,7 @@ def main() -> None:
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('language', set_language))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(pdf|excel)$"), handle_report_request))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_question))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_request))
     print("🤖 Бот запущен...")
     application.run_polling()
 
