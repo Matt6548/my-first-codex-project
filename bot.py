@@ -1,5 +1,6 @@
 import os
 import requests
+from uuid import uuid4
 from langdetect import detect
 from telegram import Update
 from telegram.ext import (
@@ -10,12 +11,13 @@ from telegram.ext import (
     filters,
 )
 
-from faq_data import FAQ_DATA
-from uuid import uuid4
-import pandas as pd
-from fpdf import FPDF
 from flask import Flask
 import threading
+import pandas as pd
+from fpdf import FPDF
+from faq_data import FAQ_DATA
+import time
+import asyncio
 
 # 🔐 Ключи берутся из переменных окружения
 BOT_TOKEN = '7697595103:AAElGIoz281OUoWluFQOSlO7l79rM5vAP9M'  # ← сюда токен Telegram
@@ -68,7 +70,9 @@ def log_interaction(question: str, answer: str) -> None:
         f.write(f"Q: {question}\nA: {answer}\n\n")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Здравствуйте! Задайте вопрос или используйте /language uz|ru|en для выбора языка.")
+    await update.message.reply_text(
+        "Здравствуйте! Задайте вопрос или используйте /language uz|ru|en для выбора языка."
+    )
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.args:
@@ -90,11 +94,9 @@ async def answer_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if lang not in SUPPORTED_LANGS:
             lang = "ru"
         context.user_data["lang"] = lang
-
     answer = find_faq_answer(question_raw, lang)
     if not answer:
         answer = await generate_ai_answer(question_raw, lang)
-
     await update.message.reply_text(answer)
     log_interaction(question_raw, answer)
 
@@ -103,14 +105,12 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not document:
         await update.message.reply_text("Пожалуйста, отправьте файл.")
         return
-
     file = await context.bot.get_file(document.file_id)
     file_extension = document.file_name.split('.')[-1]
     temp_dir = "temp"
     os.makedirs(temp_dir, exist_ok=True)
     file_path = os.path.join(temp_dir, f"{uuid4().hex}.{file_extension}")
     await file.download_to_drive(file_path)
-
     context.user_data["uploaded_file_path"] = file_path
     await update.message.reply_text(
         f"📄 Файл получен: {document.file_name}\nКакой тип отчёта вы хотите подготовить?\n\nНапишите: `pdf` или `excel`",
@@ -129,36 +129,34 @@ async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TY
             report_path = file_path.replace(".", "_report.") + "xlsx"
             df.to_excel(report_path, index=False)
         elif message == "pdf":
-             pdf = FPDF()
-             pdf.add_font('DejaVu', '', 'dejavu-sans-ttf-2.37/ttf/DejaVuSans.ttf', uni=True)  # Подключаем шрифт
-             pdf.add_page()
-             pdf.set_font("DejaVu", size=12)  # Используем юникод-шрифт
-             pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
-             pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
-             report_path = file_path.replace(".", "_report.") + "pdf"
-             pdf.output(report_path)
-
+            pdf = FPDF()
+            pdf.add_font('DejaVu', '', 'dejavu-sans-ttf-2.37/ttf/DejaVuSans.ttf', uni=True)
+            pdf.add_page()
+            pdf.set_font("DejaVu", size=12)
+            pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
+            pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
+            report_path = file_path.replace(".", "_report.") + "pdf"
+            pdf.output(report_path)
 
         await update.message.reply_document(document=open(report_path, "rb"))
+
+        # Удаление файлов через 30 секунд
+        await asyncio.sleep(30)
         os.remove(file_path)
         os.remove(report_path)
         context.user_data.clear()
-
     except Exception as e:
         await update.message.reply_text(f"❗ Ошибка при создании отчёта: {e}")
 
 def main() -> None:
     if not BOT_TOKEN:
         raise RuntimeError('Укажите TELEGRAM_BOT_TOKEN в переменных окружения.')
-
     application = ApplicationBuilder().token(BOT_TOKEN).build()
-
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('language', set_language))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(pdf|excel)$"), handle_report_request))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_question))
-
     print("🤖 Бот запущен...")
     application.run_polling()
 
