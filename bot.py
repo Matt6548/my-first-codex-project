@@ -129,13 +129,15 @@ async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TY
             report_path = file_path.replace(".", "_report.") + "xlsx"
             df.to_excel(report_path, index=False)
         elif message == "pdf":
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
-            pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
-            report_path = file_path.replace(".", "_report.") + "pdf"
-            pdf.output(report_path)
+             pdf = FPDF()
+             pdf.add_font('DejaVu', '', 'dejavu-sans-ttf-2.37/ttf/DejaVuSans.ttf', uni=True)  # Подключаем шрифт
+             pdf.add_page()
+             pdf.set_font("DejaVu", size=12)  # Используем юникод-шрифт
+             pdf.cell(200, 10, txt="Отчёт по загруженному файлу", ln=True)
+             pdf.cell(200, 10, txt=f"Путь: {file_path}", ln=True)
+             report_path = file_path.replace(".", "_report.") + "pdf"
+             pdf.output(report_path)
+
 
         await update.message.reply_document(document=open(report_path, "rb"))
         os.remove(file_path)
