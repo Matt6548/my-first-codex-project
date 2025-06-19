@@ -117,8 +117,7 @@ async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TY
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Здравствуйте! Отправьте файл или введите запрос вида "
-        "<код_анализа> <формат> <период>".
-    )
+        "<код_анализа> <формат> <период>")
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.args:
