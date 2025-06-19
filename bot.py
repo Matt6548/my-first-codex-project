@@ -101,29 +101,19 @@ async def extract_text_from_pdf(path: str) -> str:
         print(f"Ошибка извлечения текста: {e}")
         return ""
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    document = update.message.document
-    if not document:
-        await update.message.reply_text("Пожалуйста, отправьте файл.")
-        return
-    file = await context.bot.get_file(document.file_id)
-    file_extension = document.file_name.split('.')[-1]
-    temp_dir = "temp"
-    os.makedirs(temp_dir, exist_ok=True)
-    file_path = os.path.join(temp_dir, f"{uuid4().hex}.{file_extension}")
-    await file.download_to_drive(file_path)
-    context.user_data["uploaded_file_path"] = file_path
-    await update.message.reply_text(
-        f"📄 Файл получен: {document.file_name}\nНапишите, какой анализ или отчёт вы хотите получить по содержимому файла."
-    )
-
 async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     request = update.message.text.strip()
+    lang = context.user_data.get("lang", "ru")
     file_path = context.user_data.get("uploaded_file_path")
+
+    # ✅ Если файл НЕ загружен — просто ответить на вопрос
     if not file_path:
+        answer = await generate_ai_answer(request, lang)
+        await update.message.reply_text(f"🤖 Ответ:\n\n{answer}")
         return
+
+    # ✅ Если файл есть — анализировать по содержимому
     try:
-        lang = context.user_data.get("lang", "ru")
         if file_path.endswith(".pdf"):
             content = await extract_text_from_pdf(file_path)
         elif file_path.endswith(".xlsx"):
@@ -141,6 +131,7 @@ async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data.clear()
     except Exception as e:
         await update.message.reply_text(f"❗ Ошибка при анализе файла: {e}")
+
 
 def main() -> None:
     if not BOT_TOKEN:
