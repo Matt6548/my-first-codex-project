@@ -1,7 +1,0 @@
-python-telegram-bot==20.3
-openai>=1.0.0
-pdfplumber
-fpdf
-pandas
-langdetect
-python-dotenv
