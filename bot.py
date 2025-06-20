@@ -41,27 +41,26 @@ def find_faq_answer(query: str, lang: str) -> str | None:
             best_answer = ans
     return best_answer if best_score >= 0.5 else None
 
+from openai import OpenAI
+
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 async def generate_ai_answer(question: str, lang: str) -> str:
     try:
-        response = await openai.ChatCompletion.acreate(
+        response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {
-                    "role": "system",
-                    "content": f"Ты финансовый и юридический консультант. Отвечай на {lang} языке. Пиши ясно и коротко."
-                },
+                {"role": "system", "content": f"Ты финансовый и юридический консультант. Отвечай на {lang} языке. Пиши ясно и коротко."},
                 {"role": "user", "content": question}
             ],
             temperature=0.2,
             max_tokens=400
         )
         return response.choices[0].message.content.strip()
-    
     except Exception as e:
-        import traceback
-        print("❗ OpenAI API error:", e)
-        traceback.print_exc()  # покажет стек ошибки
-        return f"Ошибка при обращении к ИИ: {str(e)}"
+        print(f"OpenAI API error: {e}")
+        return "Ошибка при обращении к ИИ."
+
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
