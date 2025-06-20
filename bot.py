@@ -46,20 +46,23 @@ async def generate_ai_answer(question: str, lang: str) -> str:
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": f"Ты финансовый и юридический консультант. Отвечай на {lang} языке. Пиши ясно и коротко."},
+                {
+                    "role": "system",
+                    "content": f"Ты финансовый и юридический консультант. Отвечай на {lang} языке. Пиши ясно и коротко."
+                },
                 {"role": "user", "content": question}
             ],
             temperature=0.2,
             max_tokens=400
         )
         return response.choices[0].message.content.strip()
+    
     except Exception as e:
-        print(f"OpenAI API error: {e}")
-        return "Ошибка при обращении к ИИ."
+        import traceback
+        print("❗ OpenAI API error:", e)
+        traceback.print_exc()  # покажет стек ошибки
+        return f"Ошибка при обращении к ИИ: {str(e)}"
 
-def log_interaction(question: str, answer: str) -> None:
-    with open("log.txt", "a", encoding="utf-8") as f:
-        f.write(f"Q: {question}\nA: {answer}\n\n")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
