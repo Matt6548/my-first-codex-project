@@ -1,0 +1,8 @@
+python-telegram-bot==20.6
+requests
+pdfplumber
+pandas
+python-dotenv
+fpdf
+openai
+aiohttp
