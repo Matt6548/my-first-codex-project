@@ -76,43 +76,44 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("Пример использования: /language uz|ru|en")
 
 async def answer_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    question_raw = update.message.text.strip()
-    lang = context.user_data.get("lang")
-    if not lang:
-        try:
-            lang = detect(question_raw).split("-")[0]
-        except Exception:
-            lang = "ru"
-        if lang not in SUPPORTED_LANGS:
-            lang = "ru"
-        context.user_data["lang"] = lang
-    answer = find_faq_answer(question_raw, lang)
-    if not answer:
-        answer = await generate_ai_answer(question_raw, lang)
-    await update.message.reply_text(answer)
-    log_interaction(question_raw, answer)
+    await update.message.reply_text("Неизвестная команда. Используйте /start для помощи.")
 
 async def extract_text_from_pdf(path: str) -> str:
     try:
         with pdfplumber.open(path) as pdf:
-            text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
             return text.strip()
     except Exception as e:
         print(f"Ошибка извлечения текста: {e}")
         return ""
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
+    if not document:
+        await update.message.reply_text("Пожалуйста, отправьте файл.")
+        return
+    file = await context.bot.get_file(document.file_id)
+    file_extension = document.file_name.split('.')[-1]
+    temp_dir = "temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    file_path = os.path.join(temp_dir, f"{uuid4().hex}.{file_extension}")
+    await file.download_to_drive(file_path)
+    context.user_data["uploaded_file_path"] = file_path
+    await update.message.reply_text(
+        f"📄 Файл получен: {document.file_name}\nНапишите, какой анализ или отчёт вы хотите получить по содержимому файла."
+    )
 
 async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     request = update.message.text.strip()
     lang = context.user_data.get("lang", "ru")
     file_path = context.user_data.get("uploaded_file_path")
 
-    # ✅ Если файл НЕ загружен — просто ответить на вопрос
+    # Если файл НЕ загружен — просто ответ на текст
     if not file_path:
         answer = await generate_ai_answer(request, lang)
         await update.message.reply_text(f"🤖 Ответ:\n\n{answer}")
         return
 
-    # ✅ Если файл есть — анализировать по содержимому
     try:
         if file_path.endswith(".pdf"):
             content = await extract_text_from_pdf(file_path)
@@ -130,8 +131,8 @@ async def handle_report_request(update: Update, context: ContextTypes.DEFAULT_TY
         os.remove(file_path)
         context.user_data.clear()
     except Exception as e:
+        print(f"Ошибка анализа: {e}")
         await update.message.reply_text(f"❗ Ошибка при анализе файла: {e}")
-
 
 def main() -> None:
     if not BOT_TOKEN:
