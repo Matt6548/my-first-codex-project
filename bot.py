@@ -41,13 +41,13 @@ def find_faq_answer(query: str, lang: str) -> str | None:
             best_answer = ans
     return best_answer if best_score >= 0.5 else None
 
-from openai import OpenAI
-
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import openai
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 async def generate_ai_answer(question: str, lang: str) -> str:
     try:
-        response = openai_client.chat.completions.create(
+        client = openai.AsyncOpenAI()
+        response = await client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": f"Ты финансовый и юридический консультант. Отвечай на {lang} языке. Пиши ясно и коротко."},
@@ -60,6 +60,7 @@ async def generate_ai_answer(question: str, lang: str) -> str:
     except Exception as e:
         print(f"OpenAI API error: {e}")
         return "Ошибка при обращении к ИИ."
+
 
 
 
